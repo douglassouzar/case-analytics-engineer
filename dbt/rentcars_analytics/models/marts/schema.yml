@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: dim_partners
+    description: "Dimensão de parceiros/locadoras. Grão: 1 linha por partner_id."
+    columns:
+      - name: partner_id
+        description: "Identificador único do parceiro."
+        meta:
+          contains_pii: false
+        tests: [not_null, unique]
+      - name: status
+        description: "Status de ativação do parceiro."
+        tests:
+          - accepted_values:
+              values: ['active', 'inactive', 'suspended']
+      - name: commission_rate
+        description: "Taxa de comissão acordada, em decimal."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.05
+              max_value: 0.30
+
+  - name: dim_users
+    description: "Dimensão de usuários autenticados identificados em sessões e reservas. Usuários anônimos não aparecem aqui. Grão: 1 linha por user_id."
+    columns:
+      - name: user_id
+        description: "Identificador único do usuário."
+        meta:
+          contains_pii: true
+        tests: [not_null, unique]
+      - name: first_seen_at
+        description: "Timestamp da primeira sessão registrada para o usuário."
+
+  - name: fct_bookings
+    description: "Fato de reservas, incremental por booking_id, já validado (parceiro ativo, total_amount > 0 para confirmed/completed, deduplicado). Grão: 1 linha por reserva."
+    columns:
+      - name: booking_id
+        description: "Identificador único da reserva."
+        tests: [not_null, unique]
+      - name: partner_id
+        description: "Parceiro associado à reserva."
+        tests:
+          - relationships:
+              to: ref('dim_partners')
+              field: partner_id
+      - name: user_id
+        description: "Usuário associado à reserva (nulo para casos anônimos)."
+        tests:
+          - relationships:
+              to: ref('dim_users')
+              field: user_id
+      - name: total_amount
+        description: "Valor total da reserva, na moeda informada em currency."
+        meta:
+          contains_pii: false
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              row_condition: "status in ('confirmed','completed')"
+
+  - name: fct_sessions
+    description: "Fato de sessões de navegação, incremental por session_id, já deduplicado e sem sessões de bot. Grão: 1 linha por sessão."
+    columns:
+      - name: session_id
+        description: "Identificador único da sessão."
+        tests: [not_null, unique]
+      - name: user_id
+        description: "Usuário autenticado da sessão (nulo para visitantes anônimos)."
+        tests:
+          - relationships:
+              to: ref('dim_users')
+              field: user_id

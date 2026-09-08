@@ -1,0 +1,21 @@
+version: 2
+
+sources:
+  - name: raw
+    schema: main
+    tables:
+      - name: raw_partners
+        meta:
+          external_location: "data/raw_partners.csv"
+      - name: raw_sessions
+        meta:
+          external_location: "data/raw_sessions.csv"
+      - name: raw_searches
+        meta:
+          external_location: "data/raw_searches.csv"
+      - name: raw_bookings
+        meta:
+          external_location: "data/raw_bookings.csv"
+      - name: raw_cancellations
+        meta:
+          external_location: "data/raw_cancellations.csv"

@@ -1,0 +1,11 @@
+version: 2
+
+models:
+  - name: int_sessions_deduped
+    description: "Sessões deduplicadas por session_id (mantendo a mais recente) e com sessões de bot (is_bot = true) excluídas. Grão: 1 linha por sessão válida e única."
+
+  - name: int_bookings_valid
+    description: "Reservas deduplicadas por booking_id (mantendo a mais recente), restritas a parceiros ativos, e com total_amount > 0 exigido apenas para reservas confirmed/completed. Grão: 1 linha por reserva válida e única."
+
+  - name: int_cancellations_valid
+    description: "Cancelamentos deduplicados por cancellation_id (mantendo o mais recente), restritos a reservas existentes em stg_bookings, e com refund_amount validado para não exceder o total_amount da reserva associada. Grão: 1 linha por cancelamento válido e único."
