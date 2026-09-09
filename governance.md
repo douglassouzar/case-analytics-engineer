@@ -108,6 +108,14 @@ Premissas confirmadas em 10/09/2026:
 
 **Resultado:** 6 coortes mensais (2024-10 a 2025-03), com volume de usuários decrescente nas coortes mais recentes — padrão esperado, já que coortes recentes tiveram menos tempo dentro da janela de dados para acumular reservas.
 
+### Q4 — Detecção de sessões suspeitas de bot (>50 buscas em janela de 5 min)
+
+Premissas confirmadas em 10/09/2026:
+- Base: `stg_searches` + `stg_sessions` (staging, sem o filtro de `is_bot` que já existe em `int_searches`/`int_sessions`) — de propósito, para poder comparar o achado por volume contra a flag `is_bot` já existente.
+- Janela **fixa** de 5 minutos (não deslizante) — escolhida por simplicidade/menor complexidade de query. Validamos que essa simplificação não muda o resultado neste dataset (a 2ª sessão com mais buscas no total tem só 7, longe do limiar de 50 — não há rajada real na borda de um bloco que a janela fixa deixaria escapar).
+
+**Achado:** apenas **1 sessão** em todo o dataset ultrapassa 50 buscas numa janela de 5 minutos (68 buscas concentradas), e essa sessão **não estava marcada como `is_bot = True`** — exatamente o caso que o `data_dictionary.md` avisa ("nem todo comportamento automatizado está necessariamente marcado nessa flag"). Ou seja: a flag `is_bot` do dataset tem 0 falsos negativos capturados por volume de busca neste teste específico, com exceção dessa 1 sessão que passou despercebida.
+
 ## 6. Limitações e itens em aberto
 
 - Contagem exata de linhas removidas pelos filtros de `int_bookings` (total_amount ≤ 0 em confirmed/completed) e `int_cancellations` (refund_amount > total_amount) ainda não foi quantificada — os filtros estão corretos, mas falta medir "antes vs. depois" para reportar volume aqui.
