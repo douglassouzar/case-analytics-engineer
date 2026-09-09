@@ -21,7 +21,7 @@ select
     currency,
     status,
     payment_method
-from {{ ref('int_bookings_valid') }}
+from {{ ref('int_bookings') }}
 
 {% if is_incremental() %}
 where booked_at > (select max(booked_at) from {{ this }})

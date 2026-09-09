@@ -1,11 +1,28 @@
 version: 2
 
 models:
-  - name: int_sessions_deduped
+  - name: int_sessions
     description: "Sessões deduplicadas por session_id (mantendo a mais recente) e com sessões de bot (is_bot = true) excluídas. Grão: 1 linha por sessão válida e única."
 
-  - name: int_bookings_valid
+  - name: int_bookings
     description: "Reservas deduplicadas por booking_id (mantendo a mais recente), restritas a parceiros ativos, e com total_amount > 0 exigido apenas para reservas confirmed/completed. Grão: 1 linha por reserva válida e única."
 
-  - name: int_cancellations_valid
+  - name: int_cancellations
     description: "Cancelamentos deduplicados por cancellation_id (mantendo o mais recente), restritos a reservas existentes em stg_bookings, e com refund_amount validado para não exceder o total_amount da reserva associada. Grão: 1 linha por cancelamento válido e único."
+
+  - name: int_searches
+    description: "Buscas deduplicadas por search_id (mantendo a mais recente por searched_at), restritas a buscas cuja session_id existe em stg_sessions. Grão: 1 linha por busca válida e única. Base para o funil de conversão (Q1) e para a detecção de sessões suspeitas de bot (Q4) do Desafio 2."
+    columns:
+      - name: search_id
+        description: "Identificador único da busca."
+        tests: [not_null, unique]
+      - name: session_id
+        description: "Sessão em que a busca foi realizada."
+        tests: [not_null]
+
+  - name: int_partners
+    description: "Parceiros deduplicados por partner_id (mantendo o mais recente por updated_at, com fallback para created_at). raw_partners tinha 2 linhas duplicadas de partner_id (achado registrado em governance.md), tratadas aqui em vez de na camada de marts. Grão: 1 linha por parceiro válido e único."
+    columns:
+      - name: partner_id
+        description: "Identificador único do parceiro."
+        tests: [not_null, unique]

@@ -17,7 +17,7 @@ select
     page_views,
     utm_source,
     utm_campaign
-from {{ ref('int_sessions_deduped') }}
+from {{ ref('int_sessions') }}
 
 {% if is_incremental() %}
 where started_at > (select max(started_at) from {{ this }})

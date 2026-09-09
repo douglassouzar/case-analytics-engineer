@@ -7,7 +7,7 @@ Projeto de modelagem de dados do Case Técnico Senior Analytics Engineer Sênior
 Pré-requisitos: Python 3.9–3.12 e Git instalados.
 
 ```executar no powershell windows
-git clone https://github.com/douglassouzar/case-ae-rentcars.git
+git clone https://github.com/douglassouzar/case-analytics-engineer.git
 cd repo-case-ae-rentcars\dbt\rentcars_analytics
 
 python -m venv ..\..\venv
