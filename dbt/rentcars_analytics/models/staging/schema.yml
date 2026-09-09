@@ -5,8 +5,12 @@ models:
     description: "Uma linha por parceiro/locadora parceira da plataforma, com campos limpos e tipados a partir de raw_partners."
     columns:
       - name: partner_id
-        description: "Identificador único do parceiro."
-        tests: [not_null, unique]
+        description: "Identificador único do parceiro. Duplicatas propositais nos dados brutos."
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
       - name: status
         description: "Status de ativação do parceiro na plataforma."
 
@@ -14,15 +18,23 @@ models:
     description: "Uma linha por sessão de navegação, a partir de raw_sessions."
     columns:
       - name: session_id
-        description: "Identificador único da sessão."
-        tests: [not_null, unique]
+        description: "Identificador único da sessão. Duplicatas propositais nos dados brutos; dedup real acontece em int_sessions."
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
 
   - name: stg_searches
     description: "Uma linha por busca de disponibilidade realizada por um usuário, a partir de raw_searches."
     columns:
       - name: search_id
-        description: "Identificador único da busca."
-        tests: [not_null, unique]
+        description: "Identificador único da busca. Duplicatas propositais nos dados brutos; dedup real acontece em int_searches."
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
       - name: session_id
         description: "Sessão em que a busca foi realizada."
         tests: [not_null]
@@ -31,8 +43,12 @@ models:
     description: "Uma linha por reserva realizada na plataforma, a partir de raw_bookings."
     columns:
       - name: booking_id
-        description: "Identificador único da reserva."
-        tests: [not_null, unique]
+        description: "Identificador único da reserva. Duplicatas propositais nos dados brutos; dedup real acontece em int_bookings."
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
       - name: partner_id
         description: "Parceiro com quem a reserva foi feita."
         tests: [not_null]
@@ -41,8 +57,12 @@ models:
     description: "Uma linha por evento de cancelamento de reserva, a partir de raw_cancellations."
     columns:
       - name: cancellation_id
-        description: "Identificador único do cancelamento."
-        tests: [not_null, unique]
+        description: "Identificador único do cancelamento. Duplicatas propositais nos dados brutos; dedup real acontece em int_cancellations."
+        tests:
+          - not_null
+          - unique:
+              config:
+                severity: warn
       - name: booking_id
         description: "Reserva associada ao cancelamento."
         tests: [not_null]

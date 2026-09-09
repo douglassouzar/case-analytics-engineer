@@ -3,7 +3,7 @@ with base_searches as (
 ),
 
 base_sessions as (
-    select session_id from {{ ref('stg_sessions') }}
+    select session_id from {{ ref('int_sessions') }}
 ),
 
 deduplicacao as (

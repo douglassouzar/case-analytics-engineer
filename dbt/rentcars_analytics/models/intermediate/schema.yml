@@ -2,16 +2,34 @@ version: 2
 
 models:
   - name: int_sessions
-    description: "Sessões deduplicadas por session_id (mantendo a mais recente) e com sessões de bot (is_bot = true) excluídas. Grão: 1 linha por sessão válida e única."
+    description: "Sessões deduplicadas por session_id, mantendo a mais recente e com sessões de bot excluídas."
+    tests:
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          arguments:
+            column_A: ended_at
+            column_B: started_at
+            or_equal: false
+            row_condition: "ended_at is not null"
+          config:
+            severity: warn
 
   - name: int_bookings
-    description: "Reservas deduplicadas por booking_id (mantendo a mais recente), restritas a parceiros ativos, e com total_amount > 0 exigido apenas para reservas confirmed/completed. Grão: 1 linha por reserva válida e única."
+    description: "Reservas deduplicadas por booking_id (mantendo a mais recente), restritas a parceiros ativos, e com total_amount > 0 exigido apenas para reservas confirmed/completed."
+    tests:
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          arguments:
+            column_A: dropoff_date
+            column_B: pickup_date
+            or_equal: false
+            row_condition: "dropoff_date is not null"
+          config:
+            severity: warn
 
   - name: int_cancellations
-    description: "Cancelamentos deduplicados por cancellation_id (mantendo o mais recente), restritos a reservas existentes em stg_bookings, e com refund_amount validado para não exceder o total_amount da reserva associada. Grão: 1 linha por cancelamento válido e único."
+    description: "Cancelamentos deduplicados por cancellation_id, mantendo o mais recente, restritos a reservas existentes em stg_bookings, e com refund_amount filtrado para nunca exceder o total_amount da reserva associada"
 
   - name: int_searches
-    description: "Buscas deduplicadas por search_id (mantendo a mais recente por searched_at), restritas a buscas cuja session_id existe em stg_sessions. Grão: 1 linha por busca válida e única. Base para o funil de conversão (Q1) e para a detecção de sessões suspeitas de bot (Q4) do Desafio 2."
+    description: "Buscas deduplicadas por search_id (mantendo a mais recente por searched_at), restritas a sessões válidas, deduplicadas e não-bot."
     columns:
       - name: search_id
         description: "Identificador único da busca."
@@ -19,9 +37,27 @@ models:
       - name: session_id
         description: "Sessão em que a busca foi realizada."
         tests: [not_null]
+      - name: partner_id_clicked
+        description: "Parceiro cujo resultado o usuário clicou nesta busca, quando houve clique (35% nulo)."
+        tests:
+          - relationships:
+              arguments:
+                to: ref('int_partners')
+                field: partner_id
+              config:
+                severity: warn
+    tests:
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          arguments:
+            column_A: dropoff_date
+            column_B: pickup_date
+            or_equal: true
+            row_condition: "dropoff_date is not null"
+          config:
+            severity: warn
 
   - name: int_partners
-    description: "Parceiros deduplicados por partner_id (mantendo o mais recente por updated_at, com fallback para created_at). raw_partners tinha 2 linhas duplicadas de partner_id (achado registrado em governance.md), tratadas aqui em vez de na camada de marts. Grão: 1 linha por parceiro válido e único."
+    description: "Parceiros deduplicados por partner_id, mantendo o mais recente por updated_at, com fallback para created_at."
     columns:
       - name: partner_id
         description: "Identificador único do parceiro."
