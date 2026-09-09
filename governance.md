@@ -83,6 +83,18 @@ Premissas confirmadas em 09/09/2026:
 
 **Validação:** os resultados foram conferidos de forma independente, reconstruindo a mesma lógica (staging → intermediate → fato) diretamente sobre os CSVs brutos fora do pipeline dbt local — os números bateram exatamente para as 21 combinações de país × device. Taxa de conversão geral (sessão → reserva) girou entre ~8,9% e ~10,2% conforme o segmento, com Brasil concentrando o maior volume absoluto de sessões (BR/desktop: 15.639, BR/mobile: 15.327), como esperado por ser o mercado principal da operação.
 
+### Q2 — Top 10 parceiros por volume de reservas nos últimos 90 dias, excluindo cancelamentos
+
+Premissas confirmadas em 09-10/09/2026:
+- Janela "últimos 90 dias": `max(booked_at)` de `fct_bookings` como referência de "hoje", já que o dataset não tem uma data corrente real.
+- Verificação em duas camadas antes de contar uma reserva: (1) `status in ('confirmed', 'completed')` em `fct_bookings` — segue o glossário do `data_dictionary.md`, que define que reserva só gera receita nesses status; (2) do que sobrou, remove qualquer `booking_id` presente em `int_cancellations` (mesmo critério da Q1, cobre status desatualizado).
+
+**Achado durante a construção (mudou o desenho da query):** ao montar a soma de receita por parceiro, encontramos que os 20 parceiros do dataset têm reservas nas 5 moedas presentes na base (BRL, USD, ARS, CLP, COP) — não é um padrão de "um parceiro, uma moeda". O dataset não inclui nenhuma tabela de taxa de câmbio. Somar `total_amount` entre moedas diferentes sem conversão produz um número financeiramente sem sentido (equivale a somar reais, dólares e pesos como se fossem a mesma unidade).
+
+**Decisão adotada:** a receita não é apresentada como uma única coluna somada. A query abre o valor em uma coluna por moeda (`total_BRL`, `total_USD`, `total_ARS`, `total_CLP`, `total_COP`), sem conversão. O ranking de "top 10" passa a usar `quantidade_reservas` (volume, métrica comparável entre parceiros independente de moeda) como critério principal, com empate desempatado por `total_BRL` — BRL assumido como moeda do mercado principal da operação, por ser o país de origem da Rentcars no case.
+
+**Solicitação de dado externo para uma próxima iteração:** para reportar receita real convertida (em vez de aberta por moeda), seria necessário incorporar uma tabela de taxas de câmbio históricas cobrindo o período 01/10/2024–31/03/2025 para BRL/USD/ARS/CLP/COP. O Banco Central do Brasil disponibiliza isso publicamente e de graça: dataset **"Taxas de Câmbio — todos os boletins diários"** no Portal de Dados Abertos do BCB (`dadosabertos.bcb.gov.br`), com API OData filtrável por período e moeda, exportável em CSV — cobre as 5 moedas encontradas nesta base. Ver: https://dadosabertos.bcb.gov.br/dataset/taxas-de-cambio-todos-os-boletins-diarios/resource/0439af6a-d9be-4bf7-bf1a-60583e5f4c1c
+
 ## 6. Limitações e itens em aberto
 
 - Contagem exata de linhas removidas pelos filtros de `int_bookings` (total_amount ≤ 0 em confirmed/completed) e `int_cancellations` (refund_amount > total_amount) ainda não foi quantificada — os filtros estão corretos, mas falta medir "antes vs. depois" para reportar volume aqui.
