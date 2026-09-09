@@ -54,7 +54,7 @@ select
     s.is_bot as ja_marcada_como_bot,
     case
         when s.is_bot then 'flag is_bot já detectou'
-        else 'escapou da flag is_bot — achado da Q4'
+        else 'escapou da flag is_bot'
     end as status_deteccao
 from sessoes_suspeitas su
 join stg_sessions s on su.session_id = s.session_id
