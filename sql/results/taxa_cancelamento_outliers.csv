@@ -1,0 +1,18 @@
+parceiro,quantidade_reservas,quantidade_cancelamentos,taxa_cancelamento_pct,media_geral_pct,desvio_padrao_pct,limite_superior_2sigma,eh_outlier
+TopDrive,511,195,38.16,34.41,2.44,39.28,False
+Flexways,498,189,37.95,34.41,2.44,39.28,False
+National,468,175,37.39,34.41,2.44,39.28,False
+Sixt,500,186,37.2,34.41,2.44,39.28,False
+Hertz,492,180,36.59,34.41,2.44,39.28,False
+Thrifty,499,179,35.87,34.41,2.44,39.28,False
+Localiza,517,184,35.59,34.41,2.44,39.28,False
+Europcar,486,169,34.77,34.41,2.44,39.28,False
+Foco Rent a Car,476,162,34.03,34.41,2.44,39.28,False
+Fox Rent A Car,509,172,33.79,34.41,2.44,39.28,False
+Unidas,482,161,33.4,34.41,2.44,39.28,False
+OK Rent a Car,482,158,32.78,34.41,2.44,39.28,False
+Enterprise,512,167,32.62,34.41,2.44,39.28,False
+Movida,530,169,31.89,34.41,2.44,39.28,False
+Avis,502,157,31.27,34.41,2.44,39.28,False
+Dollar,498,155,31.12,34.41,2.44,39.28,False
+Alamo,494,151,30.57,34.41,2.44,39.28,False

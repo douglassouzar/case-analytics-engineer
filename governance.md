@@ -116,6 +116,17 @@ Premissas confirmadas em 10/09/2026:
 
 **Achado:** apenas **1 sessão** em todo o dataset ultrapassa 50 buscas numa janela de 5 minutos (68 buscas concentradas), e essa sessão **não estava marcada como `is_bot = True`** — exatamente o caso que o `data_dictionary.md` avisa ("nem todo comportamento automatizado está necessariamente marcado nessa flag"). Ou seja: a flag `is_bot` do dataset tem 0 falsos negativos capturados por volume de busca neste teste específico, com exceção dessa 1 sessão que passou despercebida.
 
+### Q5 — Taxa de cancelamento por parceiro, com outliers estatísticos (>2σ)
+
+Premissas confirmadas em 10/09/2026:
+- Taxa de cancelamento do parceiro = cancelamentos (via `int_cancellations`) / reservas do parceiro com `status in ('confirmed', 'completed')` — segue o glossário do `data_dictionary.md`, incluindo `completed` no denominador.
+- Outlier aplicado sobre a distribuição das taxas entre os parceiros (não sobre contagem bruta): média e desvio-padrão das taxas de todos os parceiros, outlier = taxa > média + 2σ.
+- Sem corte de janela temporal.
+
+**Explicação do método (2σ), para referência técnica futura:** assumindo que as taxas de cancelamento dos parceiros seguem aproximadamente uma distribuição normal, cerca de 95% dos valores caem dentro de 2 desvios-padrão da média — é a regra empírica de distribuições normais (68-95-99.7). Um parceiro cuja taxa ultrapassa `média + 2σ` está fora do padrão estatisticamente esperado do grupo: não é prova de problema, mas é um sinal forte o bastante para não ser só variação aleatória, e que justifica investigação. Ver `sql/results/q5_outliers.png` para o gráfico com os dados reais desta base.
+
+**Resultado:** média geral de 34,41% de cancelamento, desvio-padrão de 2,44 pontos percentuais, limite de outlier em 39,28%. **Nenhum parceiro ultrapassou o limite** — o mais próximo foi TopDrive, com 38,16% (a menos de 1,2 ponto percentual do limite), que vale monitorar embora não seja formalmente um outlier nesta análise.
+
 ## 6. Limitações e itens em aberto
 
 - Contagem exata de linhas removidas pelos filtros de `int_bookings` (total_amount ≤ 0 em confirmed/completed) e `int_cancellations` (refund_amount > total_amount) ainda não foi quantificada — os filtros estão corretos, mas falta medir "antes vs. depois" para reportar volume aqui.
