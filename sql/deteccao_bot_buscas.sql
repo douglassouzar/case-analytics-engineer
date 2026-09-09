@@ -30,6 +30,7 @@
 --    quantas escaparam da flag (achado documentado em governance.md).
 -- ============================================================================
 
+
 with buscas_por_janela as (
     select
         session_id,

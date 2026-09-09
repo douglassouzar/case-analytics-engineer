@@ -2,72 +2,180 @@ version: 2
 
 models:
   - name: dim_partners
-    description: "Dimensão de parceiros/locadoras. Grão: 1 linha por partner_id."
+    description: "Dimensão de parceiros/locadoras. Grão: 1 linha por partner_id. Fonte de verdade para nome, tier comercial e taxa de comissão de cada locadora parceira da plataforma."
     columns:
       - name: partner_id
-        description: "Identificador único do parceiro."
+        description: "Identificador único do parceiro (PRTxxxx). Chave primária."
         meta:
           contains_pii: false
         tests: [not_null, unique]
+      - name: partner_name
+        description: "Nome comercial da locadora (ex: Localiza, Hertz). Dado de empresa, não de pessoa física."
+        meta:
+          contains_pii: false
+      - name: country
+        description: "País de operação principal do parceiro (ISO 3166-1 alpha-2)."
+        meta:
+          contains_pii: false
+      - name: tier
+        description: "Categoria comercial do parceiro (gold > silver > bronze). Nulo = parceiro não classificado (13,6% dos parceiros)."
+        meta:
+          contains_pii: false
       - name: status
-        description: "Status de ativação do parceiro."
+        description: "Status de ativação do parceiro. Só parceiros active entram em fct_bookings (filtro aplicado em int_bookings)."
+        meta:
+          contains_pii: false
         tests:
           - accepted_values:
               values: ['active', 'inactive', 'suspended']
       - name: commission_rate
-        description: "Taxa de comissão acordada, em decimal."
+        description: "Taxa de comissão acordada, em decimal (0.12 = 12%). Contratual entre 0.05 e 0.30."
+        meta:
+          contains_pii: false
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0.05
               max_value: 0.30
+      - name: created_at
+        description: "Data de cadastro do parceiro na plataforma."
+        meta:
+          contains_pii: false
+      - name: updated_at
+        description: "Última atualização do cadastro do parceiro. Nulo = registro nunca atualizado desde o cadastro."
+        meta:
+          contains_pii: false
+      - name: contact_email
+        description: "E-mail de contato operacional do parceiro (ex: ops@localiza.com). É um contato de empresa/operação, não de pessoa física, mas ainda assim um dado de contato — ver política de PII (governance.md seção 9): classificado como Restrito, não deve sair da plataforma em export sem necessidade."
+        meta:
+          contains_pii: true
 
   - name: dim_users
-    description: "Dimensão de usuários autenticados identificados em sessões e reservas. Usuários anônimos não aparecem aqui. Grão: 1 linha por user_id."
+    description: "Dimensão de usuários autenticados identificados em sessões e reservas. Usuários anônimos (sem user_id) não aparecem aqui — decisão de modelagem para evitar grão ambíguo. Grão: 1 linha por user_id."
     columns:
       - name: user_id
-        description: "Identificador único do usuário."
+        description: "Identificador único do usuário (UUID). Identificador indireto — ver política de PII (governance.md seção 9)."
         meta:
           contains_pii: true
         tests: [not_null, unique]
       - name: first_seen_at
-        description: "Timestamp da primeira sessão registrada para o usuário."
+        description: "Timestamp da primeira sessão registrada para o usuário em int_sessions. Base da cohort mensal usada na Q3 do Desafio 2 (LTV por cohort). Nulo para os 2,4% de usuários que só aparecem em reservas, sem sessão rastreada (achado documentado em governance.md seção 5, Q3)."
+        meta:
+          contains_pii: false
 
   - name: fct_bookings
-    description: "Fato de reservas, incremental por booking_id, já validado (parceiro ativo, total_amount > 0 para confirmed/completed, deduplicado). Grão: 1 linha por reserva."
+    description: "Fato de reservas, incremental por booking_id, já validado (parceiro ativo, total_amount > 0 para confirmed/completed, deduplicado). Grão: 1 linha por reserva. Reserva só é considerada receita quando status in ('confirmed','completed') — ver glossário de métricas em governance.md seção 7."
     columns:
       - name: booking_id
-        description: "Identificador único da reserva."
+        description: "Identificador único da reserva (BKGxxxxxxx). Chave primária."
         tests: [not_null, unique]
-      - name: partner_id
-        description: "Parceiro associado à reserva."
-        tests:
-          - relationships:
-              to: ref('dim_partners')
-              field: partner_id
+      - name: session_id
+        description: "Sessão em que a reserva foi realizada."
+        meta:
+          contains_pii: false
       - name: user_id
-        description: "Usuário associado à reserva (nulo para casos anônimos)."
+        description: "Usuário associado à reserva (nulo para casos anônimos). Identificador indireto — ver política de PII."
+        meta:
+          contains_pii: true
         tests:
           - relationships:
               to: ref('dim_users')
               field: user_id
+      - name: partner_id
+        description: "Parceiro associado à reserva."
+        meta:
+          contains_pii: false
+        tests:
+          - relationships:
+              to: ref('dim_partners')
+              field: partner_id
+      - name: booked_at
+        description: "Timestamp em que a reserva foi realizada."
+        meta:
+          contains_pii: false
+      - name: pickup_date
+        description: "Data de retirada do veículo."
+        meta:
+          contains_pii: false
+      - name: dropoff_date
+        description: "Data de devolução do veículo. Deve ser posterior a pickup_date (testado em int_bookings, warn)."
+        meta:
+          contains_pii: false
+      - name: pickup_location
+        description: "Local de retirada do veículo (cidade)."
+        meta:
+          contains_pii: false
+      - name: car_category
+        description: "Categoria do veículo reservado. Domínio canônico esperado: economy, suv, luxury, pickup, minivan — a categoria 'compact' aparece nos dados fora desse domínio (achado da varredura de 09/09/2026, testado com severity warn em stg_bookings)."
+        meta:
+          contains_pii: false
+      - name: daily_rate
+        description: "Diária cobrada ao cliente, na moeda de currency."
+        meta:
+          contains_pii: false
       - name: total_amount
-        description: "Valor total da reserva, na moeda informada em currency."
+        description: "Valor total da reserva, na moeda informada em currency. Base do Ticket Médio e do LTV — ver glossário de métricas (seção 7)."
         meta:
           contains_pii: false
         tests:
           - dbt_expectations.expect_column_values_to_be_between:
               min_value: 0
               row_condition: "status in ('confirmed','completed')"
+      - name: currency
+        description: "Moeda da transação (ISO 4217). O dataset tem 5 moedas (BRL, USD, ARS, CLP, COP) sem tabela de câmbio — por isso receita é sempre reportada aberta por moeda no D2, nunca somada entre moedas (ver governance.md seção 5, Q2/Q3)."
+        meta:
+          contains_pii: false
+      - name: status
+        description: "Status atual da reserva. Só confirmed/completed geram receita (definição do glossário de negócio do data_dictionary.md)."
+        meta:
+          contains_pii: false
+      - name: payment_method
+        description: "Forma de pagamento utilizada."
+        meta:
+          contains_pii: false
 
   - name: fct_sessions
-    description: "Fato de sessões de navegação, incremental por session_id, já deduplicado e sem sessões de bot. Grão: 1 linha por sessão."
+    description: "Fato de sessões de navegação, incremental por session_id, já deduplicado e sem sessões de bot (is_bot=true excluído em int_sessions). Grão: 1 linha por sessão."
     columns:
       - name: session_id
-        description: "Identificador único da sessão."
+        description: "Identificador único da sessão (UUID). Chave primária."
         tests: [not_null, unique]
       - name: user_id
-        description: "Usuário autenticado da sessão (nulo para visitantes anônimos)."
+        description: "Usuário autenticado da sessão (nulo para visitantes anônimos). Identificador indireto — ver política de PII."
+        meta:
+          contains_pii: true
         tests:
           - relationships:
               to: ref('dim_users')
               field: user_id
+      - name: started_at
+        description: "Timestamp de início da sessão."
+        meta:
+          contains_pii: false
+      - name: ended_at
+        description: "Timestamp de encerramento da sessão. Deve ser posterior a started_at (testado, warn). Sessões >6h de duração são monitoradas via teste singular assert_session_duration_reasonable (achado: 571 sessões na camada int_sessions)."
+        meta:
+          contains_pii: false
+      - name: channel
+        description: "Canal de aquisição da sessão (google_cpc, direct, affiliate, etc.)."
+        meta:
+          contains_pii: false
+      - name: device
+        description: "Tipo de dispositivo utilizado (desktop, mobile, tablet). Normalizado em staging (lower/trim) — dado bruto tinha variantes de case (DESKTOP/desktop, Mobile/mobile)."
+        meta:
+          contains_pii: false
+      - name: country
+        description: "País de origem da sessão (ISO 3166-1). Normalizado em staging (upper/trim) — dado bruto tinha variantes de case (BR/br/Br)."
+        meta:
+          contains_pii: false
+      - name: page_views
+        description: "Número de páginas visualizadas na sessão."
+        meta:
+          contains_pii: false
+      - name: utm_source
+        description: "Fonte UTM da campanha. Alto índice de nulo (~29%) = tráfego sem rastreamento."
+        meta:
+          contains_pii: false
+      - name: utm_campaign
+        description: "Nome da campanha UTM."
+        meta:
+          contains_pii: false

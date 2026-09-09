@@ -5,10 +5,14 @@ models:
     description: "Uma linha por parceiro/locadora parceira da plataforma, com campos limpos e tipados a partir de raw_partners."
     columns:
       - name: partner_id
-        description: "Identificador único do parceiro. Duplicatas propositais nos dados brutos."
+        description: "Identificador único do parceiro."
         tests:
           - not_null
           - unique:
+              # staging é 1:1 com a fonte, sem lógica de negócio — duplicata
+              # aqui é esperada (2 casos), a garantia real de unicidade só é
+              # cobrada como error a partir de intermediate/marts (ver
+              # governance.md seção 2).
               config:
                 severity: warn
       - name: status
@@ -18,7 +22,7 @@ models:
     description: "Uma linha por sessão de navegação, a partir de raw_sessions."
     columns:
       - name: session_id
-        description: "Identificador único da sessão. Duplicatas propositais nos dados brutos; dedup real acontece em int_sessions."
+        description: "Identificador único da sessão."
         tests:
           - not_null
           - unique:
@@ -29,7 +33,7 @@ models:
     description: "Uma linha por busca de disponibilidade realizada por um usuário, a partir de raw_searches."
     columns:
       - name: search_id
-        description: "Identificador único da busca. Duplicatas propositais nos dados brutos; dedup real acontece em int_searches."
+        description: "Identificador único da busca."
         tests:
           - not_null
           - unique:
@@ -38,12 +42,24 @@ models:
       - name: session_id
         description: "Sessão em que a busca foi realizada."
         tests: [not_null]
+      - name: car_category
+        description: "Categoria de veículo filtrada na busca."
+        tests:
+          - accepted_values:
+              # mesmo achado do stg_bookings: "compact" fora do domínio
+              # canônico do dicionário (11.566 buscas). severity warn.
+              arguments:
+                values: ['economy', 'suv', 'luxury', 'pickup', 'minivan']
+                quote: true
+              config:
+                severity: warn
+                where: "car_category is not null"
 
   - name: stg_bookings
     description: "Uma linha por reserva realizada na plataforma, a partir de raw_bookings."
     columns:
       - name: booking_id
-        description: "Identificador único da reserva. Duplicatas propositais nos dados brutos; dedup real acontece em int_bookings."
+        description: "Identificador único da reserva."
         tests:
           - not_null
           - unique:
@@ -52,12 +68,27 @@ models:
       - name: partner_id
         description: "Parceiro com quem a reserva foi feita."
         tests: [not_null]
+      - name: car_category
+        description: "Categoria do veículo reservado."
+        tests:
+          - accepted_values:
+              # domínio canônico do data_dictionary.md (economy, suv, luxury,
+              # pickup, minivan). "compact" aparece nos dados mas não está
+              # nessa lista original — achado da varredura de 09/09/2026
+              # (2.556 reservas), documentado em governance.md. severity warn
+              # porque não bloqueia nada hoje, só sinaliza o volume.
+              arguments:
+                values: ['economy', 'suv', 'luxury', 'pickup', 'minivan']
+                quote: true
+              config:
+                severity: warn
+                where: "car_category is not null"
 
   - name: stg_cancellations
     description: "Uma linha por evento de cancelamento de reserva, a partir de raw_cancellations."
     columns:
       - name: cancellation_id
-        description: "Identificador único do cancelamento. Duplicatas propositais nos dados brutos; dedup real acontece em int_cancellations."
+        description: "Identificador único do cancelamento."
         tests:
           - not_null
           - unique:
@@ -66,3 +97,12 @@ models:
       - name: booking_id
         description: "Reserva associada ao cancelamento."
         tests: [not_null]
+      - name: days_before_pickup
+        description: "Dias entre o cancelamento e a data de retirada. Negativo indica cancelamento tardio (após início do período de locação)."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              arguments:
+                min_value: 0
+                row_condition: "days_before_pickup is not null"
+              config:
+                severity: warn
