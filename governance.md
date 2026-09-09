@@ -95,6 +95,19 @@ Premissas confirmadas em 09-10/09/2026:
 
 **Solicitação de dado externo para uma próxima iteração:** para reportar receita real convertida (em vez de aberta por moeda), seria necessário incorporar uma tabela de taxas de câmbio históricas cobrindo o período 01/10/2024–31/03/2025 para BRL/USD/ARS/CLP/COP. O Banco Central do Brasil disponibiliza isso publicamente e de graça: dataset **"Taxas de Câmbio — todos os boletins diários"** no Portal de Dados Abertos do BCB (`dadosabertos.bcb.gov.br`), com API OData filtrável por período e moeda, exportável em CSV — cobre as 5 moedas encontradas nesta base. Ver: https://dadosabertos.bcb.gov.br/dataset/taxas-de-cambio-todos-os-boletins-diarios/resource/0439af6a-d9be-4bf7-bf1a-60583e5f4c1c
 
+### Q3 — LTV médio por cohort de primeiro acesso (mês/ano)
+
+Premissas confirmadas em 10/09/2026:
+- LTV = receita acumulada por usuário dentro do período disponível nos dados (aproximação de "valor gerado até aqui", não o ciclo de vida completo do cliente — o dataset cobre só 6 meses). Não é contagem de sessões nem tempo até reservar.
+- Mesma regra de validade de receita da Q2 (duas camadas: `status in ('confirmed','completed')` + fora de `int_cancellations`), mas **sem** corte de 90 dias — soma o período inteiro disponível.
+- Aberto por moeda pelo mesmo motivo da Q2 (sem tabela de câmbio disponível).
+- Cohort = mês/ano de `first_seen_at` (primeira sessão) em `dim_users`.
+- Métrica reportada é a média de LTV por usuário na cohort, com denominador = **todos** os usuários da cohort (inclusive os que nunca reservaram, contados como LTV = 0) — reflete o valor médio real gerado pela cohort inteira, não só pelos pagantes.
+
+**Achado:** de 37.891 usuários em `dim_users`, **926 (2,4%) têm `first_seen_at` nulo** — ou seja, aparecem em reservas (`fct_bookings`) mas nunca tiveram uma sessão válida registrada em `int_sessions` (nem mesmo antes da exclusão de bots). Esses usuários ficam de fora da análise de cohort por não terem um mês/ano de primeiro acesso para agrupar. Candidato a investigação: pode ser reserva feita fora do funil rastreado (ex: canal offline/parceiro) ou lacuna de instrumentação de sessão.
+
+**Resultado:** 6 coortes mensais (2024-10 a 2025-03), com volume de usuários decrescente nas coortes mais recentes — padrão esperado, já que coortes recentes tiveram menos tempo dentro da janela de dados para acumular reservas.
+
 ## 6. Limitações e itens em aberto
 
 - Contagem exata de linhas removidas pelos filtros de `int_bookings` (total_amount ≤ 0 em confirmed/completed) e `int_cancellations` (refund_amount > total_amount) ainda não foi quantificada — os filtros estão corretos, mas falta medir "antes vs. depois" para reportar volume aqui.

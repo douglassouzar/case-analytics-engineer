@@ -1,10 +1,9 @@
 """
-Executa a query de top_parceiros_receita.sql (Q2) contra o DuckDB local
-materializado pelo dbt (dbt/rentcars_analytics/dev.duckdb) e exporta o
-resultado em CSV.
+Executa a query de ltv_cohort.sql (Q3) contra o DuckDB local materializado
+pelo dbt (dbt/rentcars_analytics/dev.duckdb) e exporta o resultado em CSV.
 
 Uso (com o venv do projeto ativado, de qualquer pasta):
-    python run_top_parceiros_receita.py
+    python run_ltv_cohort.py
 """
 
 import os
@@ -13,9 +12,9 @@ import duckdb
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DBT_PROJECT_DIR = os.path.join(SCRIPT_DIR, "..", "dbt", "rentcars_analytics")
 DB_FILE = "dev.duckdb"
-SQL_FILE = os.path.join(SCRIPT_DIR, "top_parceiros_receita.sql")
+SQL_FILE = os.path.join(SCRIPT_DIR, "ltv_cohort.sql")
 OUTPUT_DIR = os.path.join(SCRIPT_DIR, "results")
-OUTPUT_FILE = "top_parceiros_receita.csv"
+OUTPUT_FILE = "ltv_cohort.csv"
 ROW_LIMIT = 1000
 
 
@@ -34,7 +33,7 @@ def main():
     os.chdir(DBT_PROJECT_DIR)
     con = duckdb.connect(DB_FILE, read_only=True)
 
-    print("Rodando top_parceiros_receita...")
+    print("Rodando ltv_cohort...")
     df = con.execute(query).fetchdf()
 
     if len(df) > ROW_LIMIT:

@@ -6,7 +6,7 @@
 -- Executada diretamente sobre o DuckDB local materializado pelo dbt
 -- (dbt/rentcars_analytics/dev.duckdb), consumindo as camadas
 -- intermediate/marts já validadas no Desafio 1.
--- Ver sql/run_receita_parceiros.py para o script de execução e exportação
+-- Ver sql/run_top_parceiros_receita.py para o script de execução e exportação
 -- em CSV (máx. 1.000 linhas — aqui o "top 10" já garante isso).
 --
 -- Premissas (confirmadas em 09-10/09/2026):
