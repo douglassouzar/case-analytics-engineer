@@ -1,13 +1,16 @@
 -- ============================================================================
 -- Desafio 2 — SQL Analítico Avançado | Case Rentcars
+-- Queries executadas diretamente sobre o DuckDB local materializado pelo dbt
+-- (dbt/rentcars_analytics/dev.duckdb), consumindo as camadas intermediate/marts
+-- já validadas no Desafio 1. Ver sql/run_queries.py para o script de execução
+-- e exportação em CSV (máx. 1.000 linhas por query).
+-- ============================================================================
+
+
+-- ===QUERY: q1_funil_conversao===
+-- ----------------------------------------------------------------------------
 -- Q1 — Taxa de conversão do funil sessão → busca → reserva,
 -- segmentada por país e device.
---
--- Executada diretamente sobre o DuckDB local materializado pelo dbt
--- (dbt/rentcars_analytics/dev.duckdb), consumindo as camadas
--- intermediate/marts já validadas no Desafio 1.
--- Ver sql/run_funil_conversao.py para o script de execução e exportação
--- em CSV (máx. 1.000 linhas).
 --
 -- Premissas (confirmadas em 09/09/2026):
 -- 1. Base de sessões: int_sessions (já exclui is_bot = true e está
@@ -27,13 +30,7 @@
 -- 6. country/device nulos ou em branco viram 'Não identificado' em vez de
 --    serem descartados, para não perder volume do funil (o data_dictionary.md
 --    declara essas colunas como NOT NULL, mas a checagem defensiva é mantida).
--- 7. Colunas de saída traduzidas para português (pais, dispositivo) para
---    consumo direto por stakeholders não técnicos.
---
--- Validação: resultado conferido de forma independente, reconstruindo a
--- mesma lógica diretamente sobre os CSVs brutos fora do pipeline dbt — os
--- números bateram exatamente para as 21 combinações de país x device.
--- ============================================================================
+-- ----------------------------------------------------------------------------
 
 with sessoes as (
     select
