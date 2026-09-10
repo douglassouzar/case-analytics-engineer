@@ -1,20 +1,13 @@
-# =============================================================================
-# Data Contract: rpt_revenue_by_partner
-# =============================================================================
-# Origem: discovery com stakeholder de Revenue/Pricing (ver roteiro_entrevista.md
-# e requisitos_tecnicos.md, mesma pasta). Este contrato cobre apenas a Fase 1
-# combinada com a stakeholder — conversão cambial oficial (RF-05) e receita
-# líquida de reembolso ficam fora deste contrato até serem implementadas,
-# ver seção "backlog_conhecido" ao final.
 
 contract:
   id: rpt_revenue_by_partner
-  version: 1.0.0
+  version: 2.0.0
   status: active
   description: >
     Receita por parceiro, aberta por moeda, para uso em revisão de comissão
-    (Revenue/Pricing e Financeiro) e em visão consolidada aproximada para o
-    board. Consome fct_bookings e int_cancellations, produzidos no D1.
+    (Revenue/Pricing e Financeiro). Não produz, nesta fase, um número
+    consolidado único para o board — ver metric_catalog e backlog_conhecido.
+    Consome fct_bookings e int_cancellations, produzidos no D1.
 
   owner:
     team: Analytics Engineering
@@ -31,9 +24,9 @@ contract:
       uso: "Conciliação com o valor já reportado no faturamento"
       criticidade: alta
     - team: Comercial / Board
-      uso: "Consolidado aproximado, apresentação mensal"
+      uso: "Recebe, nesta fase, a mesma visão aberta por moeda de Pricing/Financeiro — sem consolidado único"
       criticidade: media
-      nota: "NUNCA usar para cálculo de comissão, ver campo is_approximate"
+      nota: "Um número único de receita total para o board só existirá após RF-05 (tabela de câmbio oficial). Não há previsão de data — comunicar essa limitação antes da primeira apresentação ao board"
 
 # -----------------------------------------------------------------------------
 # Fontes upstream (dependências deste contrato)
@@ -119,24 +112,75 @@ schema:
       Consumidor deve tratar como número sujeito a alteração até o fechamento.
     pii: false
 
-  - field: board_consolidated_brl_amount
-    type: decimal
-    nullable: true
-    description: >
-      Consolidado aproximado em BRL usando taxa de câmbio fixa de referência
-      do ciclo (ver assumptions.fx_rate_used). Preenchido apenas na visão
-      agregada para board, nulo na visão detalhada por parceiro/moeda.
-    pii: false
+# -----------------------------------------------------------------------------
+# Catálogo de métricas (mini data contract por métrica, formato exigido pelo
+# Desafio 5: nome, definição de negócio, lógica de cálculo, owner, SLA,
+# criticidade)
+# -----------------------------------------------------------------------------
+metric_catalog:
 
-  - field: is_approximate
-    type: boolean
-    nullable: false
-    description: >
-      true sempre que board_consolidated_brl_amount estiver preenchido.
-      Consumidor é OBRIGADO a exibir aviso de aproximação junto a qualquer
-      valor onde is_approximate = true, e este campo NUNCA deve ser usado
-      para cálculo de comissão.
-    pii: false
+  - nome: "Receita Confirmada por Parceiro"
+    definicao_negocio: >
+      Valor gerado por um parceiro que efetivamente vai contar para o cálculo
+      de comissão — reserva que "pegou", não pendente e não cancelada.
+    logica_de_calculo: >
+      SUM(total_amount) de fct_bookings, WHERE status IN ('confirmed','completed')
+      AND booking_id NOT IN (SELECT booking_id FROM int_cancellations),
+      agrupado por partner_id, currency e reference_month. Nunca somado entre
+      valores de currency diferentes (ver business_rules.no_cross_currency_sum).
+    owner:
+      dado: "Analytics Engineering"
+      negocio: "Head de Revenue & Pricing"
+    sla: "Fechado: disponível em até 2 dias úteis após o fechamento do mês. Parcial: atualizado a cada rodada incremental de fct_bookings (meta 24h)."
+    criticidade: alta
+    observacao: "Base de cálculo de comissão paga a parceiro externo — erro aqui tem custo financeiro real, não só reputacional."
+
+  - nome: "Receita Consolidada (Board)"
+    definicao_negocio: >
+      Um único número de receita total, em BRL, que o diretor comercial possa
+      apresentar numa reunião de board sem precisar interpretar 5 colunas de moeda.
+    logica_de_calculo: >
+      NÃO IMPLEMENTADA nesta fase. Depende de RF-05 (tabela de câmbio oficial,
+      cotação diária do Banco Central do Brasil). A alternativa de um número
+      aproximado com taxa fixa e aviso de aproximação foi avaliada e descartada
+      na entrevista de discovery — decisão da stakeholder foi não apresentar
+      nenhum número provisório.
+    owner:
+      dado: "Analytics Engineering (a definir formalmente quando RF-05 entrar em backlog priorizado)"
+      negocio: "Head de Revenue & Pricing / Diretor Comercial"
+    sla: "Não definido — RF-05 não tem prazo, depende de outro time (engenharia de dados)"
+    criticidade: media
+    observacao: "Métrica inexistente hoje. Registrada aqui para que ninguém no board assuma que esse número já existe."
+
+  - nome: "Índice de Completude de Receita"
+    definicao_negocio: >
+      Proporção de reservas confirmadas/concluídas que NÃO puderam entrar no
+      cálculo de receita por terem valor inválido (nulo, zero ou negativo) na origem.
+      Serve como termômetro de confiança do número de receita do mês.
+    logica_de_calculo: >
+      excluded_invalid_amount_count / (booking_count + excluded_invalid_amount_count),
+      por partner_id e reference_month.
+    owner:
+      dado: "Analytics Engineering"
+      negocio: "Head de Revenue & Pricing (consumidora do alerta)"
+    sla: "Calculado a cada rodada do relatório, mesma cadência de Receita Confirmada por Parceiro"
+    criticidade: alta
+    observacao: "Alerta automático se > 2% no mês — ver quality_checks.revenue_completeness."
+
+  - nome: "Reservas Suspeitas (Mesmo Usuário/Dia)"
+    definicao_negocio: >
+      Sinal de possível fraude ou abuso: mais de uma reserva do mesmo usuário
+      no mesmo dia. Não é removido da receita automaticamente — é alerta para
+      revisão humana antes de qualquer ação sobre comissão.
+    logica_de_calculo: >
+      Contagem de booking_id por (user_id, DATE(booked_at)) com COUNT > 1,
+      restrito a reservas confirmed/completed, via teste_reservas_duplicadas_usuario_dia.
+    owner:
+      dado: "Analytics Engineering"
+      negocio: "Head de Revenue & Pricing (decide se há ação sobre comissão)"
+    sla: "Calculado a cada rodada do relatório"
+    criticidade: media
+    observacao: "Alerta automático se > 0.5% dos usuários com reserva no período — ver quality_checks.suspicious_booking_rate."
 
 # -----------------------------------------------------------------------------
 # Regras de negócio (rastreáveis à entrevista / governance.md)
@@ -147,14 +191,17 @@ business_rules:
     source: "governance.md, seção 7.2 — confirmado sem alteração na entrevista com Revenue/Pricing"
 
   - id: no_cross_currency_sum
-    rule: "revenue_amount nunca é somado entre linhas de currency diferentes na visão detalhada"
+    rule: "revenue_amount nunca é somado entre linhas de currency diferentes"
     reason: "Dataset não possui tabela de câmbio; soma entre moedas produz valor sem validade financeira e afeta cálculo de comissão"
     source: "roteiro_entrevista.md, Parte 3"
 
-  - id: approximate_board_view_requires_disclaimer
-    rule: "board_consolidated_brl_amount só pode ser exibido junto de is_approximate=true e do aviso textual de aproximação"
-    reason: "Evitar que valor aproximado seja usado por engano para decisão de comissão"
-    source: "roteiro_entrevista.md, Parte 3"
+  - id: no_board_only_approximation
+    rule: "Nenhum valor aproximado/provisório de receita é produzido para o board nesta fase"
+    reason: >
+      Avaliado na entrevista e descartado pela stakeholder — prioridade foi dada
+      à solução definitiva (RF-05) em vez de um número aproximado com aviso,
+      mesmo sem prazo definido para essa solução
+    source: "roteiro_entrevista.md, Parte 3 (versão atualizada em 10/09/2026)"
 
   - id: no_automatic_exclusion_of_suspicious_bookings
     rule: "flagged_suspicious_booking_count é informativo; nenhuma reserva é removida de revenue_amount automaticamente por esse motivo"
@@ -191,22 +238,15 @@ quality_checks:
     action_on_breach: "Pipeline falha, não publica relatório com moeda desconhecida sem revisão manual"
 
 # -----------------------------------------------------------------------------
-# Premissas assumidas nesta versão do contrato
-# -----------------------------------------------------------------------------
-assumptions:
-  fx_rate_used: "Taxa de câmbio fixa definida manualmente pelo time de Revenue/Pricing a cada ciclo, apenas para board_consolidated_brl_amount. Não é uma cotação de mercado em tempo real."
-  reference_currency: "BRL, por ser a moeda do mercado principal da operação"
-
-# -----------------------------------------------------------------------------
-# Backlog conhecido — fora deste contrato, ver requisitos_tecnicos.md seção 3
+# Backlog conhecido — fora deste contrato, ver requisitos_tecnicos.md seção 4
 # -----------------------------------------------------------------------------
 backlog_conhecido:
   - id: RF-05
-    item: "Conversão cambial oficial via cotação histórica do Banco Central do Brasil"
-    impacto_no_contrato: "Substituiria assumptions.fx_rate_used por taxa de mercado; board_consolidated_brl_amount deixaria de exigir is_approximate=true"
+    item: "Conversão cambial oficial (cotação histórica do Banco Central do Brasil) + consolidado único para o board"
+    impacto_no_contrato: "Adicionaria de volta um campo de receita consolidada em BRL ao schema e ao metric_catalog, agora com taxa de mercado real em vez de aproximação — sem prazo definido, depende de outro time"
   - id: net_refund_revenue
     item: "Receita líquida de reembolso parcial (hoje total_amount é bruto)"
-    impacto_no_contrato: "Adicionaria campo revenue_amount_net_of_refund ao schema"
+    impacto_no_contrato: "Adicionaria campo revenue_amount_net_of_refund ao schema e ao metric_catalog"
 
 # -----------------------------------------------------------------------------
 # Changelog
@@ -215,3 +255,11 @@ changelog:
   - version: 1.0.0
     date: "2026-09-09"
     change: "Versão inicial, resultado da entrevista de discovery com Revenue/Pricing (D5)"
+  - version: 2.0.0
+    date: "2026-09-10"
+    change: >
+      Revisão final antes da entrega. Removido o campo de consolidado
+      aproximado para o board (board_consolidated_brl_amount / is_approximate)
+      — descartado na negociação final da entrevista. Adicionado metric_catalog
+      com o mini data contract por métrica (nome, definição, lógica de cálculo,
+      owner, SLA, criticidade), atendendo ao requisito literal do Desafio 5.
