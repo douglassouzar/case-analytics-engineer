@@ -1,0 +1,217 @@
+# =============================================================================
+# Data Contract: rpt_revenue_by_partner
+# =============================================================================
+# Origem: discovery com stakeholder de Revenue/Pricing (ver roteiro_entrevista.md
+# e requisitos_tecnicos.md, mesma pasta). Este contrato cobre apenas a Fase 1
+# combinada com a stakeholder — conversão cambial oficial (RF-05) e receita
+# líquida de reembolso ficam fora deste contrato até serem implementadas,
+# ver seção "backlog_conhecido" ao final.
+
+contract:
+  id: rpt_revenue_by_partner
+  version: 1.0.0
+  status: active
+  description: >
+    Receita por parceiro, aberta por moeda, para uso em revisão de comissão
+    (Revenue/Pricing e Financeiro) e em visão consolidada aproximada para o
+    board. Consome fct_bookings e int_cancellations, produzidos no D1.
+
+  owner:
+    team: Analytics Engineering
+    contact: douglassouza.admtec@gmail.com
+    role: Data Producer
+
+  consumers:
+    - team: Revenue & Pricing
+      stakeholder: Head de Revenue & Pricing
+      uso: "Detalhe por parceiro/moeda para revisão de comissão"
+      criticidade: alta
+      nota: "Número usado para decisão que afeta pagamento de comissão a parceiro externo"
+    - team: Financeiro
+      uso: "Conciliação com o valor já reportado no faturamento"
+      criticidade: alta
+    - team: Comercial / Board
+      uso: "Consolidado aproximado, apresentação mensal"
+      criticidade: media
+      nota: "NUNCA usar para cálculo de comissão, ver campo is_approximate"
+
+# -----------------------------------------------------------------------------
+# Fontes upstream (dependências deste contrato)
+# -----------------------------------------------------------------------------
+upstream_dependencies:
+  - model: fct_bookings
+    fields_used: [booking_id, partner_id, total_amount, currency, status, booked_at]
+    contrato_upstream: "Grão 1 linha por booking_id, já filtrado (parceiro ativo, total_amount > 0 quando confirmed/completed). Ver models/marts/schema.yml"
+  - model: int_cancellations
+    fields_used: [booking_id]
+    contrato_upstream: "Usado para excluir da receita qualquer reserva com cancelamento registrado, mesmo que fct_bookings ainda não reflita o status atualizado"
+  - model: dim_partners
+    fields_used: [partner_id, partner_name, tier]
+    contrato_upstream: "Enriquecimento de nome e tier comercial do parceiro"
+
+# -----------------------------------------------------------------------------
+# Schema do dado entregue
+# -----------------------------------------------------------------------------
+schema:
+  - field: partner_id
+    type: string
+    nullable: false
+    description: "Identificador do parceiro (PRTxxxx)."
+    pii: false
+
+  - field: partner_name
+    type: string
+    nullable: false
+    description: "Nome comercial do parceiro, de dim_partners."
+    pii: false
+
+  - field: reference_month
+    type: date
+    nullable: false
+    description: "Mês de referência do relatório (primeiro dia do mês)."
+    pii: false
+
+  - field: currency
+    type: string
+    nullable: false
+    description: "Moeda ISO 4217 da receita reportada nesta linha (BRL, USD, ARS, CLP, COP)."
+    pii: false
+
+  - field: revenue_amount
+    type: decimal
+    nullable: false
+    description: >
+      Soma de total_amount de fct_bookings para este parceiro/moeda/mês,
+      status confirmed ou completed, excluindo booking_id presente em
+      int_cancellations. NUNCA somado entre valores de currency diferentes,
+      ver regra de negócio "no_cross_currency_sum" abaixo.
+    pii: false
+
+  - field: booking_count
+    type: integer
+    nullable: false
+    description: "Quantidade de reservas que compõem revenue_amount, mesmo filtro."
+    pii: false
+
+  - field: excluded_invalid_amount_count
+    type: integer
+    nullable: false
+    description: >
+      Quantidade de reservas confirmed/completed do parceiro/mês excluídas do
+      cálculo por total_amount nulo, zero ou negativo. Alimenta o alerta de
+      completude (ver quality_checks.revenue_completeness).
+    pii: false
+
+  - field: flagged_suspicious_booking_count
+    type: integer
+    nullable: false
+    description: >
+      Quantidade de reservas do parceiro/mês envolvidas em padrão de múltiplas
+      reservas do mesmo usuário no mesmo dia (teste_reservas_duplicadas_usuario_dia).
+      Informativo, não é descontado de revenue_amount.
+    pii: false
+
+  - field: is_partial_month
+    type: boolean
+    nullable: false
+    description: >
+      true quando reference_month é o mês corrente ainda não fechado.
+      Consumidor deve tratar como número sujeito a alteração até o fechamento.
+    pii: false
+
+  - field: board_consolidated_brl_amount
+    type: decimal
+    nullable: true
+    description: >
+      Consolidado aproximado em BRL usando taxa de câmbio fixa de referência
+      do ciclo (ver assumptions.fx_rate_used). Preenchido apenas na visão
+      agregada para board, nulo na visão detalhada por parceiro/moeda.
+    pii: false
+
+  - field: is_approximate
+    type: boolean
+    nullable: false
+    description: >
+      true sempre que board_consolidated_brl_amount estiver preenchido.
+      Consumidor é OBRIGADO a exibir aviso de aproximação junto a qualquer
+      valor onde is_approximate = true, e este campo NUNCA deve ser usado
+      para cálculo de comissão.
+    pii: false
+
+# -----------------------------------------------------------------------------
+# Regras de negócio (rastreáveis à entrevista / governance.md)
+# -----------------------------------------------------------------------------
+business_rules:
+  - id: revenue_definition
+    rule: "status in ('confirmed','completed') AND booking_id NOT IN int_cancellations"
+    source: "governance.md, seção 7.2 — confirmado sem alteração na entrevista com Revenue/Pricing"
+
+  - id: no_cross_currency_sum
+    rule: "revenue_amount nunca é somado entre linhas de currency diferentes na visão detalhada"
+    reason: "Dataset não possui tabela de câmbio; soma entre moedas produz valor sem validade financeira e afeta cálculo de comissão"
+    source: "roteiro_entrevista.md, Parte 3"
+
+  - id: approximate_board_view_requires_disclaimer
+    rule: "board_consolidated_brl_amount só pode ser exibido junto de is_approximate=true e do aviso textual de aproximação"
+    reason: "Evitar que valor aproximado seja usado por engano para decisão de comissão"
+    source: "roteiro_entrevista.md, Parte 3"
+
+  - id: no_automatic_exclusion_of_suspicious_bookings
+    rule: "flagged_suspicious_booking_count é informativo; nenhuma reserva é removida de revenue_amount automaticamente por esse motivo"
+    reason: "Suspeita de fraude exige revisão humana antes de qualquer ação sobre receita/comissão"
+    source: "roteiro_entrevista.md, Parte 4; governance.md, seção 3"
+
+# -----------------------------------------------------------------------------
+# SLA
+# -----------------------------------------------------------------------------
+sla:
+  freshness:
+    partial_view: "Atualizado na mesma cadência do incremental de fct_bookings (ver governance.md 8.1, meta de rodar a cada 24h)"
+    closed_month_view: "Disponível em até 2 dias úteis após o fechamento do mês"
+  availability_target: "99% dos meses sem atraso no fechamento oficial"
+
+# -----------------------------------------------------------------------------
+# Regras de qualidade / alertas (thresholds herdados de governance.md seção 8.4,
+# aplicados aqui no nível do relatório)
+# -----------------------------------------------------------------------------
+quality_checks:
+  - id: revenue_completeness
+    check: "excluded_invalid_amount_count / (booking_count + excluded_invalid_amount_count) por parceiro/mês"
+    threshold: "alerta se > 2%"
+    action_on_breach: "Destacar no relatório como anomalia a investigar antes de publicar o número oficial do mês"
+
+  - id: suspicious_booking_rate
+    check: "flagged_suspicious_booking_count / total de usuários com reserva no período"
+    threshold: "alerta se > 0.5%"
+    action_on_breach: "Notificar Revenue/Pricing separadamente da publicação do número de receita"
+
+  - id: currency_domain_check
+    check: "currency deve estar em (BRL, USD, ARS, CLP, COP)"
+    threshold: "qualquer valor fora do domínio bloqueia a publicação (severity: error)"
+    action_on_breach: "Pipeline falha, não publica relatório com moeda desconhecida sem revisão manual"
+
+# -----------------------------------------------------------------------------
+# Premissas assumidas nesta versão do contrato
+# -----------------------------------------------------------------------------
+assumptions:
+  fx_rate_used: "Taxa de câmbio fixa definida manualmente pelo time de Revenue/Pricing a cada ciclo, apenas para board_consolidated_brl_amount. Não é uma cotação de mercado em tempo real."
+  reference_currency: "BRL, por ser a moeda do mercado principal da operação"
+
+# -----------------------------------------------------------------------------
+# Backlog conhecido — fora deste contrato, ver requisitos_tecnicos.md seção 3
+# -----------------------------------------------------------------------------
+backlog_conhecido:
+  - id: RF-05
+    item: "Conversão cambial oficial via cotação histórica do Banco Central do Brasil"
+    impacto_no_contrato: "Substituiria assumptions.fx_rate_used por taxa de mercado; board_consolidated_brl_amount deixaria de exigir is_approximate=true"
+  - id: net_refund_revenue
+    item: "Receita líquida de reembolso parcial (hoje total_amount é bruto)"
+    impacto_no_contrato: "Adicionaria campo revenue_amount_net_of_refund ao schema"
+
+# -----------------------------------------------------------------------------
+# Changelog
+# -----------------------------------------------------------------------------
+changelog:
+  - version: 1.0.0
+    date: "2026-09-09"
+    change: "Versão inicial, resultado da entrevista de discovery com Revenue/Pricing (D5)"
