@@ -8,17 +8,9 @@ Repositório de resolução do case técnico para a vaga de Senior Analytics Eng
 |---|---|---|---|
 | D1 — Modelagem com dbt | 25% | `dbt/rentcars_analytics/` | ✅ Concluído |
 | D2 — SQL analítico | 20% | `sql/` | ✅ Concluído |
-| D3 — Dashboard | 20% | `dashboard/` | ⏳ Pendente — ver seção "Status do D3" abaixo |
+| D3 — Dashboard | 20% | `dashboard/` | ✅ Concluído |
 | D4 — Governança de dados | 20% | `governance.md` | ✅ Concluído |
 | D5 — Comunicação com stakeholders | 15% | `stakeholders/` | ✅ Concluído |
-
----
-
-## Status do D3 (Dashboard)
-
-Por restrição de tempo, a construção visual do dashboard do Desafio 3 não foi concluída até o prazo de entrega inicial (10/09, manhã). Os dados que o alimentariam já estão prontos e testados nas camadas `marts` do Desafio 1 e nos resultados de `sql/results/` do Desafio 2 falta apenas a camada de visualização.
-
-**Compromisso:** o D3 será entregue como atualização deste repositório até **14/09/2026**.
 
 ---
 
@@ -165,7 +157,8 @@ Legenda: setas verticais = linhagem direta (staging → intermediate → marts);
 - **Múltiplas reservas do mesmo usuário no mesmo dia** e **outliers de valor por categoria** ficam monitorados via teste `severity: warn`, não bloqueados — são candidatos a fraude/anomalia, não certezas, e exigem revisão humana antes de qualquer exclusão automática (ver `governance.md` seções 3 e 8).
 - **SLA de dados (`governance.md` seção 8) é uma proposta de threshold, não um gate de CI automatizado.** Próximo passo natural: `dbt build` rodando em CI (Buildkite/GitHub Actions) a cada PR, bloqueando merge se algum teste `severity: error` falhar ou se um `warn` ultrapassar o threshold da tabela de SLA.
 - **Retenção de dado pessoal (`user_id`) sem política numérica definida** — registrado como gap explícito em `governance.md` seção 9.2, não uma lacuna escondida.
-- **D3 (Dashboard) pendente**, ver seção "Status do D3" acima — compromisso de entrega até 14/09/2026.
+- **Dashboard (D3) sem tabela de câmbio, mesma decisão do D1/D2/D5**: a receita mensal do dashboard é reportada só em BRL (mercado principal) por padrão, com nota indicando que as demais moedas estão disponíveis nos dados — não somadas, pelo mesmo motivo já documentado em `governance.md`.
+- **Gráfico de cancelamento por parceiro limitado a 10 dos 17 parceiros** na visualização padrão do Looker Studio (as 10 maiores taxas, que já são suficientes para provar que nenhuma ultrapassa o limite de outlier de 2σ) — o detalhe completo dos 17 está em `sql/results/taxa_cancelamento_outliers.csv`.
 
 ---
 
@@ -175,7 +168,7 @@ Legenda: setas verticais = linhagem direta (staging → intermediate → marts);
 repo-case-ae-rentcars/
 ├── dbt/rentcars_analytics/    ← Desafio 1: projeto dbt completo (staging → intermediate → marts, testes, docs)
 ├── sql/                        ← Desafio 2: queries analíticas + scripts de execução/exportação em CSV
-├── dashboard/                  ← Desafio 3: pendente, ver "Status do D3"
+├── dashboard/                  ← Desafio 3: PDF do dashboard (Looker Studio) + apresentação de 5 slides
 ├── governance.md               ← Desafio 4: qualidade de dado, catálogo, glossário de métricas, SLA, política de PII
 ├── stakeholders/                ← Desafio 5: discovery simulado, requisitos técnicos e data contract
 │   ├── roteiro_entrevista.md
