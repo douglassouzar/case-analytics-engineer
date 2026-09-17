@@ -14,6 +14,17 @@ Repositório de resolução do case técnico para a vaga de Senior Analytics Eng
 
 ---
 
+## Dashboard
+
+Dashboard construído no Looker Studio, consumindo diretamente os CSVs de `sql/results/` (nenhum dado digitado manualmente):
+
+- **PDF estático:** `dashboard/dashboard_rentcars_performance.pdf`
+- **Link de visualização pública:** https://datastudio.google.com/reporting/18ef1d18-6ea5-40ab-affa-99bd251cbc57
+- **Conteúdo:** 4 scorecards (total de reservas, receita total BRL, taxa de conversão geral, taxa de cancelamento média) + 6 visualizações — evolução mensal de reservas e receita, funil sessão → busca → reserva, taxa de cancelamento por parceiro com linha de referência do limite de outlier (2σ), top 10 parceiros por receita com detalhe por moeda, e LTV médio por cohort.
+- **Fonte adicional criada para o dashboard:** `sql/funil_etapas.sql` / `sql/run_funil_etapas.py` — reshape do funil de `funil_conversao.sql` (Q1 do D2) em formato longo (1 linha por etapa), necessário porque o gráfico de funil nativo do Looker Studio exige dimensão + métrica em vez de múltiplas métricas separadas. Mesma lógica de `int_sessions`/`int_searches`/`fct_bookings`/`int_cancellations` já validada no D1/D2, sem dado hardcoded.
+- **Insight contra-intuitivo da apresentação** (ver `dashboard/apresentacao_desafio3.pptx`): o parceiro com a pior taxa de cancelamento (TopDrive, 38,16%) não é um outlier estatístico (limite de 2σ = 39,28%) — a taxa de cancelamento é sistemicamente alta em toda a base (média de 34,41%, desvio-padrão de apenas 2,44 p.p. entre os 17 parceiros), então a ação recomendada é investigar a causa raiz do cancelamento na plataforma inteira, não abrir uma conversa de performance isolada com um parceiro.
+
+
 ## Como executar o projeto dbt do zero
 
 ### Pré-requisitos
